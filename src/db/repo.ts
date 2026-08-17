@@ -65,6 +65,23 @@ export async function updateTable(id: string, patch: Partial<Pick<Table, 'name' 
   await db.seatingTables.update(id, patch);
 }
 
+export async function swapTableOrder(idA: string, idB: string): Promise<void> {
+  await db.transaction('rw', db.seatingTables, async () => {
+    const [a, b] = await Promise.all([db.seatingTables.get(idA), db.seatingTables.get(idB)]);
+    if (!a || !b) throw new Error('Table not found');
+    await db.seatingTables.update(a.id, { order: b.order });
+    await db.seatingTables.update(b.id, { order: a.order });
+  });
+}
+
+/** Guests currently seated at a table — used to warn before deleting it. */
+export async function guestsSeatedAtTable(tableId: string): Promise<Guest[]> {
+  const seats = await db.seats.where('tableId').equals(tableId).toArray();
+  const guestIds = seats.map((s) => s.guestId).filter((id): id is string => !!id);
+  if (guestIds.length === 0) return [];
+  return db.guests.bulkGet(guestIds).then((gs) => gs.filter((g): g is Guest => !!g));
+}
+
 /** Returns the guests that will be freed to the pool if capacity shrinks, without applying the change. */
 export async function guestsFreedBySetCapacity(tableId: string, newCapacity: number): Promise<Guest[]> {
   const seats = await db.seats.where('tableId').equals(tableId).toArray();

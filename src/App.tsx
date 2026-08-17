@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { GuestsPage } from './features/guests/GuestsPage';
 import { ImportPage } from './features/import/ImportPage';
+import { TablesPage } from './features/tables/TablesPage';
 
-type Tab = 'goscie' | 'import';
+type Tab = 'goscie' | 'import' | 'stoly';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'goscie', label: 'Goście' },
   { id: 'import', label: 'Import CSV' },
+  { id: 'stoly', label: 'Stoły' },
 ];
 
 function App() {
@@ -36,6 +38,7 @@ function App() {
       <main className="p-6">
         {tab === 'goscie' && <GuestsPage />}
         {tab === 'import' && <ImportPage />}
+        {tab === 'stoly' && <TablesPage />}
       </main>
     </div>
   );

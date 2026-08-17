@@ -9,8 +9,11 @@ import {
   deleteTable,
   exportBackup,
   importBackup,
+  guestsFreedBySetCapacity,
+  guestsSeatedAtTable,
   setTableCapacity,
   swapSeats,
+  swapTableOrder,
   unseatGuest,
 } from './repo';
 
@@ -80,6 +83,21 @@ describe('tables', () => {
     expect(seatedGuestIds.has(guests[1].id)).toBe(true);
   });
 
+  it('previews which guests would be freed by a capacity shrink, without applying it', async () => {
+    const table = await addTable({ name: 'Stół 1', capacity: 3 });
+    const guests = await Promise.all([0, 1, 2].map((i) => addGuest({ firstName: `G${i}`, lastName: 'Test' })));
+    for (let i = 0; i < 3; i++) {
+      await assignGuestToSeat(guests[i].id, seatIdFor(table.id, i));
+    }
+
+    const freed = await guestsFreedBySetCapacity(table.id, 1);
+
+    expect(freed.map((g) => g.id).sort()).toEqual([guests[1].id, guests[2].id].sort());
+    // Nothing actually changed yet.
+    expect((await db.seatingTables.get(table.id))?.capacity).toBe(3);
+    expect(await db.seats.where('tableId').equals(table.id).count()).toBe(3);
+  });
+
   it('growing capacity adds new empty seats without touching existing ones', async () => {
     const table = await addTable({ name: 'Stół 1', capacity: 2 });
     const guest = await addGuest({ firstName: 'Anna', lastName: 'Kowalska' });
@@ -104,6 +122,26 @@ describe('tables', () => {
     expect(await db.seatingTables.get(table.id)).toBeUndefined();
     expect(await db.seats.where('tableId').equals(table.id).count()).toBe(0);
     expect(await db.guests.get(guest.id)).toBeDefined();
+  });
+
+  it('swaps the order of two tables', async () => {
+    const t1 = await addTable({ name: 'Stół 1', capacity: 2, order: 0 });
+    const t2 = await addTable({ name: 'Stół 2', capacity: 2, order: 1 });
+
+    await swapTableOrder(t1.id, t2.id);
+
+    expect((await db.seatingTables.get(t1.id))?.order).toBe(1);
+    expect((await db.seatingTables.get(t2.id))?.order).toBe(0);
+  });
+
+  it('lists guests currently seated at a table', async () => {
+    const table = await addTable({ name: 'Stół 1', capacity: 2 });
+    const guest = await addGuest({ firstName: 'Anna', lastName: 'Kowalska' });
+    await assignGuestToSeat(guest.id, seatIdFor(table.id, 0));
+
+    const seated = await guestsSeatedAtTable(table.id);
+
+    expect(seated.map((g) => g.id)).toEqual([guest.id]);
   });
 });
 

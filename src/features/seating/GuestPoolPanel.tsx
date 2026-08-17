@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 import type { Guest } from '../../db/types';
 import type { Selection } from './selection';
+import { POOL_DROPPABLE_ID, poolDraggableId } from './dnd';
 
 type GuestPoolPanelProps = {
   guests: Guest[];
@@ -8,8 +10,32 @@ type GuestPoolPanelProps = {
   onSelect: (guest: Guest) => void;
 };
 
+function PoolGuestItem({ guest, isSelected, onSelect }: { guest: Guest; isSelected: boolean; onSelect: () => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: poolDraggableId(guest.id),
+    data: { kind: 'pool', guestId: guest.id },
+  });
+
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      onClick={onSelect}
+      className={`block w-full touch-none rounded px-2 py-1.5 text-left text-sm ${
+        isSelected ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+      } ${isDragging ? 'opacity-30' : ''}`}
+      {...listeners}
+      {...attributes}
+    >
+      {guest.firstName} {guest.lastName}
+      {guest.isChild && <span className="ml-1 text-xs opacity-70">(dziecko)</span>}
+    </button>
+  );
+}
+
 export function GuestPoolPanel({ guests, selection, onSelect }: GuestPoolPanelProps) {
   const [search, setSearch] = useState('');
+  const { setNodeRef, isOver } = useDroppable({ id: POOL_DROPPABLE_ID, data: { kind: 'pool' } });
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -31,23 +57,15 @@ export function GuestPoolPanel({ guests, selection, onSelect }: GuestPoolPanelPr
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <div className="flex-1 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
-        {filtered.map((g) => {
-          const isSelected = selection?.guestId === g.id;
-          return (
-            <button
-              key={g.id}
-              type="button"
-              onClick={() => onSelect(g)}
-              className={`block w-full rounded px-2 py-1.5 text-left text-sm ${
-                isSelected ? 'bg-slate-900 text-white' : 'hover:bg-slate-100 text-slate-700'
-              }`}
-            >
-              {g.firstName} {g.lastName}
-              {g.isChild && <span className="ml-1 text-xs opacity-70">(dziecko)</span>}
-            </button>
-          );
-        })}
+      <div
+        ref={setNodeRef}
+        className={`min-h-24 flex-1 space-y-1 overflow-y-auto rounded-lg border p-2 ${
+          isOver ? 'border-slate-900 bg-slate-50' : 'border-slate-200 bg-white'
+        }`}
+      >
+        {filtered.map((g) => (
+          <PoolGuestItem key={g.id} guest={g} isSelected={selection?.guestId === g.id} onSelect={() => onSelect(g)} />
+        ))}
         {filtered.length === 0 && <p className="px-2 py-4 text-center text-sm text-slate-400">Brak gości.</p>}
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 import type { Guest, Seat, Table } from '../../db/types';
 import type { Selection } from './selection';
 
@@ -8,6 +9,52 @@ type TableCardProps = {
   selection: Selection;
   onSlotClick: (seat: Seat) => void;
 };
+
+function SeatSlot({
+  seat,
+  guest,
+  isSelected,
+  onSlotClick,
+}: {
+  seat: Seat;
+  guest: Guest | undefined;
+  isSelected: boolean;
+  onSlotClick: (seat: Seat) => void;
+}) {
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: seat.id, data: { kind: 'seat', seat } });
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+    id: seat.id,
+    data: { kind: 'seat', guestId: seat.guestId ?? '', seatId: seat.id },
+    disabled: !guest,
+  });
+
+  return (
+    <button
+      ref={(node) => {
+        setDropRef(node);
+        setDragRef(node);
+      }}
+      type="button"
+      onClick={() => onSlotClick(seat)}
+      className={`touch-none truncate rounded border px-2 py-1.5 text-left text-xs ${
+        isDragging ? 'opacity-30' : ''
+      } ${
+        isSelected
+          ? 'border-slate-900 bg-slate-900 text-white'
+          : isOver
+            ? 'border-slate-900 bg-slate-100'
+            : guest
+              ? 'border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-400'
+              : 'border-dashed border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-600'
+      }`}
+      title={guest ? `${guest.firstName} ${guest.lastName}` : 'Puste miejsce'}
+      {...(guest ? listeners : {})}
+      {...(guest ? attributes : {})}
+    >
+      {guest ? `${guest.firstName} ${guest.lastName}` : '+ puste'}
+    </button>
+  );
+}
 
 export function TableCard({ table, seats, guestsById, selection, onSlotClick }: TableCardProps) {
   const filled = seats.filter((s) => s.guestId).length;
@@ -22,27 +69,15 @@ export function TableCard({ table, seats, guestsById, selection, onSlotClick }: 
         </span>
       </div>
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-        {sorted.map((seat) => {
-          const guest = seat.guestId ? guestsById.get(seat.guestId) : undefined;
-          const isSelected = selection?.seatId === seat.id;
-          return (
-            <button
-              key={seat.id}
-              type="button"
-              onClick={() => onSlotClick(seat)}
-              className={`truncate rounded border px-2 py-1.5 text-left text-xs ${
-                isSelected
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : guest
-                    ? 'border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-400'
-                    : 'border-dashed border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-600'
-              }`}
-              title={guest ? `${guest.firstName} ${guest.lastName}` : 'Puste miejsce'}
-            >
-              {guest ? `${guest.firstName} ${guest.lastName}` : '+ puste'}
-            </button>
-          );
-        })}
+        {sorted.map((seat) => (
+          <SeatSlot
+            key={seat.id}
+            seat={seat}
+            guest={seat.guestId ? guestsById.get(seat.guestId) : undefined}
+            isSelected={selection?.seatId === seat.id}
+            onSlotClick={onSlotClick}
+          />
+        ))}
       </div>
     </div>
   );

@@ -71,4 +71,4 @@ Wymagane: `imie`, `nazwisko`. UI importu ma mapowanie kolumn + podgląd przed za
 - Logika operacji na miejscach w `src/db/repo.ts`, nie w komponentach.
 - Operacje modyfikujące wiele tabel opakowane w `db.transaction('rw', ...)`.
 - Bez Reduxa/Zustanda — `useLiveQuery` + `useState` wystarczy.
-- `base` w `vite.config.ts` ustawiony na `/wesele-stoly/` — dopasuj do rzeczywistej nazwy repo na GitHubie przed pierwszym deployem.
+- `base` w `vite.config.ts` ustawiony na `/wesele/` — musi być zgodny z nazwą repo na GitHubie (`bartoszbialoglowicz/wesele`).

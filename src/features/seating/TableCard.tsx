@@ -100,7 +100,7 @@ export function TableCard({
           {filled}/{table.capacity}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-1.5">
         {sorted.map((seat) => {
           const guest = seat.guestId ? guestsById.get(seat.guestId) : undefined;
           return (

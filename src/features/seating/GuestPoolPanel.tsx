@@ -3,14 +3,29 @@ import { useDraggable, useDroppable } from '@dnd-kit/core';
 import type { Guest } from '../../db/types';
 import type { Selection } from './selection';
 import { POOL_DROPPABLE_ID, poolDraggableId } from './dnd';
+import { guestColorClass, type ColorMode } from './colors';
 
 type GuestPoolPanelProps = {
   guests: Guest[];
   selection: Selection;
   onSelect: (guest: Guest) => void;
+  colorMode: ColorMode;
+  highlightGuestId: string | null;
 };
 
-function PoolGuestItem({ guest, isSelected, onSelect }: { guest: Guest; isSelected: boolean; onSelect: () => void }) {
+function PoolGuestItem({
+  guest,
+  isSelected,
+  isHighlighted,
+  colorClass,
+  onSelect,
+}: {
+  guest: Guest;
+  isSelected: boolean;
+  isHighlighted: boolean;
+  colorClass: string;
+  onSelect: () => void;
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: poolDraggableId(guest.id),
     data: { kind: 'pool', guestId: guest.id },
@@ -21,9 +36,9 @@ function PoolGuestItem({ guest, isSelected, onSelect }: { guest: Guest; isSelect
       ref={setNodeRef}
       type="button"
       onClick={onSelect}
-      className={`block w-full touch-none rounded px-2 py-1.5 text-left text-sm ${
-        isSelected ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
-      } ${isDragging ? 'opacity-30' : ''}`}
+      className={`block w-full touch-none rounded border border-transparent px-2 py-1.5 text-left text-sm ${
+        isSelected ? 'bg-slate-900 text-white' : colorClass || 'text-slate-700 hover:bg-slate-100'
+      } ${isDragging ? 'opacity-30' : ''} ${isHighlighted ? 'ring-2 ring-offset-1 ring-amber-500' : ''}`}
       {...listeners}
       {...attributes}
     >
@@ -33,7 +48,7 @@ function PoolGuestItem({ guest, isSelected, onSelect }: { guest: Guest; isSelect
   );
 }
 
-export function GuestPoolPanel({ guests, selection, onSelect }: GuestPoolPanelProps) {
+export function GuestPoolPanel({ guests, selection, onSelect, colorMode, highlightGuestId }: GuestPoolPanelProps) {
   const [search, setSearch] = useState('');
   const { setNodeRef, isOver } = useDroppable({ id: POOL_DROPPABLE_ID, data: { kind: 'pool' } });
 
@@ -64,7 +79,14 @@ export function GuestPoolPanel({ guests, selection, onSelect }: GuestPoolPanelPr
         }`}
       >
         {filtered.map((g) => (
-          <PoolGuestItem key={g.id} guest={g} isSelected={selection?.guestId === g.id} onSelect={() => onSelect(g)} />
+          <PoolGuestItem
+            key={g.id}
+            guest={g}
+            isSelected={selection?.guestId === g.id}
+            isHighlighted={g.id === highlightGuestId}
+            colorClass={guestColorClass(g, colorMode)}
+            onSelect={() => onSelect(g)}
+          />
         ))}
         {filtered.length === 0 && <p className="px-2 py-4 text-center text-sm text-slate-400">Brak gości.</p>}
       </div>

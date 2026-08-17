@@ -11,14 +11,24 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { useGuests, useSeatedGuestIds, useSeats, useTables } from '../../db/hooks';
-import { assignGuestToSeat, swapSeats, unseatGuest } from '../../db/repo';
+import { assignGuestToSeat, restoreSeatGuestIds, swapSeats, unseatGuest } from '../../db/repo';
 import type { Guest, Seat } from '../../db/types';
 import { GuestPoolPanel } from './GuestPoolPanel';
 import { TableCard } from './TableCard';
 import type { Selection } from './selection';
 import type { DragData } from './dnd';
+import type { ColorMode } from './colors';
+import { buildGuestTableIndex, computeTableWarnings } from './warnings';
 
 type OverData = { kind: 'pool' } | { kind: 'seat'; seat: Seat };
+
+const MAX_HISTORY = 20;
+
+const COLOR_MODE_OPTIONS: { id: ColorMode; label: string }[] = [
+  { id: 'none', label: 'Brak' },
+  { id: 'group', label: 'Grupa' },
+  { id: 'side', label: 'Strona' },
+];
 
 export function SeatingPage() {
   const guests = useGuests();
@@ -28,6 +38,9 @@ export function SeatingPage() {
 
   const [selection, setSelection] = useState<Selection>(null);
   const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
+  const [colorMode, setColorMode] = useState<ColorMode>('none');
+  const [boardSearch, setBoardSearch] = useState('');
+  const [history, setHistory] = useState<Seat[][]>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -45,6 +58,27 @@ export function SeatingPage() {
     }
     return map;
   }, [seats]);
+  const guestTableIndex = useMemo(() => buildGuestTableIndex(seats), [seats]);
+
+  const highlightGuestId = useMemo(() => {
+    const q = boardSearch.trim().toLowerCase();
+    if (!q) return null;
+    const match = guests.find((g) => `${g.firstName} ${g.lastName}`.toLowerCase().includes(q));
+    return match?.id ?? null;
+  }, [boardSearch, guests]);
+
+  function pushHistory() {
+    setHistory((prev) => [...prev, seats].slice(-MAX_HISTORY));
+  }
+
+  async function handleUndo() {
+    setHistory((prev) => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      void restoreSeatGuestIds(last);
+      return prev.slice(0, -1);
+    });
+  }
 
   function handlePoolSelect(guest: Guest) {
     setSelection((prev) => (prev?.guestId === guest.id ? null : { guestId: guest.id, seatId: null }));
@@ -63,6 +97,7 @@ export function SeatingPage() {
       return;
     }
 
+    pushHistory();
     if (!seat.guestId) {
       await assignGuestToSeat(selection.guestId, seat.id);
     } else if (selection.seatId) {
@@ -87,6 +122,7 @@ export function SeatingPage() {
 
     if (activeData.kind === 'pool') {
       if (overData.kind === 'seat') {
+        pushHistory();
         await assignGuestToSeat(activeData.guestId, overData.seat.id);
       }
       return;
@@ -94,12 +130,14 @@ export function SeatingPage() {
 
     // activeData.kind === 'seat'
     if (overData.kind === 'pool') {
+      pushHistory();
       await unseatGuest(activeData.guestId);
       return;
     }
 
     if (overData.seat.id === activeData.seatId) return; // dropped on itself: no-op
 
+    pushHistory();
     if (!overData.seat.guestId) {
       await assignGuestToSeat(activeData.guestId, overData.seat.id);
     } else {
@@ -117,8 +155,47 @@ export function SeatingPage() {
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
     >
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          placeholder="Znajdź gościa na planszy…"
+          className="w-64 rounded border border-slate-300 px-3 py-1.5 text-sm"
+          value={boardSearch}
+          onChange={(e) => setBoardSearch(e.target.value)}
+        />
+        <div className="flex items-center gap-1 text-sm">
+          <span className="text-slate-500">Kolor wg:</span>
+          {COLOR_MODE_OPTIONS.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setColorMode(opt.id)}
+              className={`rounded px-2 py-1 ${
+                colorMode === opt.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={handleUndo}
+          disabled={history.length === 0}
+          className="ml-auto rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          ↶ Cofnij {history.length > 0 && `(${history.length})`}
+        </button>
+      </div>
+
       <div className="flex gap-4">
-        <GuestPoolPanel guests={poolGuests} selection={selection} onSelect={handlePoolSelect} />
+        <GuestPoolPanel
+          guests={poolGuests}
+          selection={selection}
+          onSelect={handlePoolSelect}
+          colorMode={colorMode}
+          highlightGuestId={highlightGuestId}
+        />
         <div className="grid flex-1 grid-cols-1 gap-3 self-start sm:grid-cols-2 lg:grid-cols-3">
           {tables.map((t) => (
             <TableCard
@@ -128,6 +205,9 @@ export function SeatingPage() {
               guestsById={guestsById}
               selection={selection}
               onSlotClick={handleSlotClick}
+              colorMode={colorMode}
+              highlightGuestId={highlightGuestId}
+              warnings={computeTableWarnings(t, seatsByTable.get(t.id) ?? [], guestsById, guestTableIndex)}
             />
           ))}
           {tables.length === 0 && (

@@ -162,6 +162,18 @@ export async function unseatGuest(guestId: string): Promise<void> {
   });
 }
 
+/** Restores seat occupancy from a snapshot (used for seating undo). Seats that no longer exist are skipped. */
+export async function restoreSeatGuestIds(snapshot: Pick<Seat, 'id' | 'guestId'>[]): Promise<void> {
+  await db.transaction('rw', db.seats, async () => {
+    for (const s of snapshot) {
+      const current = await db.seats.get(s.id);
+      if (current) {
+        await db.seats.update(s.id, { guestId: s.guestId });
+      }
+    }
+  });
+}
+
 // ---------- Bulk / backup ----------
 
 export async function clearAll(): Promise<void> {

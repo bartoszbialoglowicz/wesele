@@ -11,6 +11,7 @@ import {
   importBackup,
   guestsFreedBySetCapacity,
   guestsSeatedAtTable,
+  restoreSeatGuestIds,
   setTableCapacity,
   swapSeats,
   swapTableOrder,
@@ -200,6 +201,20 @@ describe('seat assignment', () => {
     await assignGuestToSeat(guest.id, seatIdFor(table.id, 0));
 
     await swapSeats(seatIdFor(table.id, 0), seatIdFor(table.id, 0));
+
+    expect((await db.seats.get(seatIdFor(table.id, 0)))?.guestId).toBe(guest.id);
+  });
+
+  it('restores seat occupancy from a snapshot, skipping seats that no longer exist', async () => {
+    const table = await addTable({ name: 'Stół 1', capacity: 2 });
+    const guest = await addGuest({ firstName: 'Anna', lastName: 'Kowalska' });
+    await assignGuestToSeat(guest.id, seatIdFor(table.id, 0));
+    const snapshot = await db.seats.where('tableId').equals(table.id).toArray();
+
+    await unseatGuest(guest.id);
+    expect((await db.seats.get(seatIdFor(table.id, 0)))?.guestId).toBeNull();
+
+    await restoreSeatGuestIds(snapshot);
 
     expect((await db.seats.get(seatIdFor(table.id, 0)))?.guestId).toBe(guest.id);
   });
